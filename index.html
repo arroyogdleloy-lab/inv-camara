@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Buscador Inventario QR</title>
+    
+    <script src="https://unpkg.com/html5-qrcode"></script>
+
+    <style>
+        :root {
+            --primary-color: #2563eb;
+            --bg-color: #f1f5f9;
+            --text-color: #0f172a;
+            --qr-color: #10b981;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg-color);
+            margin: 0; padding: 0;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        /* --- BARRA SUPERIOR --- */
+        .top-bar {
+            background: white;
+            padding: 12px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            z-index: 100;
+        }
+
+        .custom-file-upload {
+            background-color: #3b82f6;
+            color: white;
+            padding: 12px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            text-align: center;
+            display: block;
+            width: 100%;
+            box-sizing: border-box;
+            font-size: 0.9rem;
+        }
+        
+        input[type="file"] { display: none; }
+
+        /* Contenedor horizontal: Buscador + Botón QR */
+        .search-container {
+            display: flex;
+            gap: 8px;
+            width: 100%;
+        }
+
+        .search-wrapper {
+            position: relative;
+            flex: 1;
+        }
+
+        input[type="text"] {
+            width: 100%;
+            padding: 14px;
+            padding-right: 45px;
+            border: 2px solid #cbd5e1;
+            border-radius: 8px;
+            font-size: 1.1rem;
+            outline: none;
+            box-sizing: border-box;
+            -webkit-appearance: none;
+        }
+
+        input[type="text"]:focus { border-color: var(--primary-color); }
+
+        .qr-btn {
+            background-color: var(--qr-color);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            width: 60px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            cursor: pointer;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .qr-btn:active { background-color: #059669; }
+
+        .clear-btn {
+            position: absolute;
+            right: 0; top: 0; height: 100%; width: 45px;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.6rem;
+            color: #94a3b8;
+            cursor: pointer;
+        }
+
+        /* Lista de sugerencias */
+        .suggestions-list {
+            position: absolute;
+            top: 100%; left: 0; width: 100%;
+            background: white;
+            border: 1px solid #cbd5e1;
+            border-radius: 0 0 12px 12px;
+            margin: 0; padding: 0;
+            list-style: none;
+            max-height: 35vh;
+            overflow-y: auto;
+            display: none;
+            z-index: 200;
+            box-shadow: 0 10px 15px rgba(0,0,0,0.1);
+        }
+
+        .suggestions-list.active { display: block; }
+        .suggestion-item { padding: 15px; border-bottom: 1px solid #f1f5f9; font-size: 1rem; }
+        .suggestion-item:active { background-color: #eff6ff; }
+
+        /* --- MODAL DEL SCANNER (PANTALLA COMPLETA) --- */
+        #qr-modal {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.95);
+            z-index: 999;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+
+        #qr-reader {
+            width: 85%;
+            max-width: 400px;
+            border-radius: 12px;
+            overflow: hidden;
+            border: 2px solid white;
+        }
+
+        .close-qr {
+            margin-top: 30px;
+            padding: 15px 40px;
+            background: #ef4444;
+            color: white;
+            border-radius: 50px;
+            font-weight: bold;
+            font-size: 1rem;
+            border: none;
+        }
+
+        /* --- CONTENIDO PRINCIPAL --- */
+        .main-content {
+            flex: 1;
+            background-color: #1e293b;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 10px;
+            position: relative;
+        }
+
+        #preview-img {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+            display: none;
+        }
+
+        .status-text { text-align: center; font-size: 0.75rem; color: #64748b; margin-top: -5px; }
+        #placeholder { color: #94a3b8; text-align: center; font-size: 1rem; }
+
+    </style>
+</head>
+<body>
+
+<div class="top-bar">
+    <label for="folderInput" class="custom-file-upload" id="uploadLabel">📂 Toca para cargar carpeta</label>
+    <input type="file" id="folderInput" webkitdirectory directory multiple>
+    
+    <div class="status-text" id="statusMsg">Sin carpeta cargada</div>
+
+    <div class="search-container">
+        <div class="search-wrapper">
+            <input type="text" id="searchInput" placeholder="Escribe o escanea QR..." disabled autocomplete="off">
+            <div id="clearBtn" class="clear-btn"><span>&times;</span></div>
+            <ul id="suggestionsList" class="suggestions-list"></ul>
+        </div>
+        <button id="qrOpenBtn" class="qr-btn">📷</button>
+    </div>
+</div>
+
+<div id="qr-modal">
+    <div id="qr-reader"></div>
+    <button class="close-qr" id="qrCloseBtn">CANCELAR</button>
+</div>
+
+<div class="main-content">
+    <div id="placeholder">Las fotos aparecerán aquí</div>
+    <img id="preview-img" alt="Vista previa">
+</div>
+
+<script>
+    const folderInput = document.getElementById('folderInput');
+    const searchInput = document.getElementById('searchInput');
+    const suggestionsList = document.getElementById('suggestionsList');
+    const previewImg = document.getElementById('preview-img');
+    const statusMsg = document.getElementById('statusMsg');
+    const clearBtn = document.getElementById('clearBtn');
+    const placeholder = document.getElementById('placeholder');
+    const qrModal = document.getElementById('qr-modal');
+    const qrOpenBtn = document.getElementById('qrOpenBtn');
+    const qrCloseBtn = document.getElementById('qrCloseBtn');
+    const uploadLabel = document.getElementById('uploadLabel');
+
+    let imageFiles = [];
+    let html5QrCode;
+
+    // 1. CARGA DE ARCHIVOS
+    folderInput.addEventListener('change', (e) => {
+        const files = Array.from(e.target.files);
+        imageFiles = files.filter(file => file.type.startsWith('image/'));
+
+        if (imageFiles.length > 0) {
+            statusMsg.textContent = `${imageFiles.length} fotos cargadas`;
+            uploadLabel.textContent = "📂 Cambiar carpeta";
+            uploadLabel.style.backgroundColor = "#64748b";
+            searchInput.disabled = false;
+            placeholder.textContent = "Listo para buscar o escanear";
+        } else {
+            statusMsg.textContent = "No se encontraron imágenes";
+        }
+    });
+
+    // 2. BUSCADOR MANUAL
+    searchInput.addEventListener('input', (e) => {
+        const query = e.target.value.toLowerCase();
+        if (query.length > 0) {
+            clearBtn.style.display = 'flex';
+            actualizarSugerencias(query);
+        } else {
+            resetView();
+        }
+    });
+
+    function actualizarSugerencias(query) {
+        suggestionsList.innerHTML = '';
+        const matches = imageFiles.filter(f => f.name.toLowerCase().includes(query));
+        
+        if (matches.length > 0) {
+            suggestionsList.classList.add('active');
+            matches.slice(0, 30).forEach(file => {
+                const li = document.createElement('li');
+                li.className = 'suggestion-item';
+                li.textContent = file.name;
+                li.onclick = () => {
+                    seleccionarImagen(file);
+                };
+                suggestionsList.appendChild(li);
+            });
+        } else {
+            suggestionsList.classList.remove('active');
+        }
+    }
+
+    function seleccionarImagen(file) {
+        displayImage(file);
+        searchInput.value = file.name;
+        suggestionsList.classList.remove('active');
+        searchInput.blur(); // Cierra teclado móvil
+    }
+
+    // 3. LÓGICA QR
+    qrOpenBtn.addEventListener('click', () => {
+        qrModal.style.display = 'flex';
+        html5QrCode = new Html5Qrcode("qr-reader");
+        
+        const config = { 
+            fps: 10, 
+            qrbox: { width: 250, height: 250 },
+            aspectRatio: 1.0
+        };
+
+        html5QrCode.start(
+            { facingMode: "environment" }, 
+            config, 
+            (decodedText) => {
+                // EXTRACCIÓN: Busca "Part#:" ignorando mayúsculas/minúsculas
+                const match = decodedText.match(/Part#:\s*([\w-]+)/i);
+                
+                if (match && match[1]) {
+                    const partNumber = match[1];
+                    detenerScanner();
+                    buscarExacto(partNumber);
+                } else {
+                    console.log("QR leído sin Part#:", decodedText);
+                }
+            }
+        ).catch(err => {
+            alert("Error: Asegúrate de usar HTTPS y dar permisos de cámara.");
+            qrModal.style.display = 'none';
+        });
+    });
+
+    function buscarExacto(numero) {
+        const busqueda = numero.toLowerCase();
+        // Busca un archivo cuyo nombre CONTENGA el número extraído
+        const encontrado = imageFiles.find(f => f.name.toLowerCase().includes(busqueda));
+        
+        if (encontrado) {
+            searchInput.value = numero;
+            seleccionarImagen(encontrado);
+            clearBtn.style.display = 'flex';
+        } else {
+            alert("No se encontró foto para: " + numero);
+            searchInput.value = numero;
+            clearBtn.style.display = 'flex';
+        }
+    }
+
+    function detenerScanner() {
+        if (html5QrCode && html5QrCode.isScanning) {
+            html5QrCode.stop().then(() => {
+                qrModal.style.display = 'none';
+                html5QrCode = null;
+            });
+        } else {
+            qrModal.style.display = 'none';
+        }
+    }
+
+    qrCloseBtn.onclick = detenerScanner;
+
+    // 4. FUNCIONES DE APOYO
+    function displayImage(file) {
+        if (previewImg.src.startsWith('blob:')) {
+            URL.revokeObjectURL(previewImg.src);
+        }
+        const url = URL.createObjectURL(file);
+        previewImg.src = url;
+        previewImg.style.display = 'block';
+        placeholder.style.display = 'none';
+    }
+
+    function resetView() {
+        clearBtn.style.display = 'none';
+        suggestionsList.classList.remove('active');
+        previewImg.style.display = 'none';
+        placeholder.style.display = 'block';
+    }
+
+    clearBtn.onclick = () => {
+        searchInput.value = '';
+        resetView();
+        searchInput.focus();
+    };
+
+    // Cerrar sugerencias al tocar fuera
+    document.addEventListener('click', (e) => {
+        if (!e.target.closest('.search-wrapper')) {
+            suggestionsList.classList.remove('active');
+        }
+    });
+</script>
+
+</body>
+</html>
